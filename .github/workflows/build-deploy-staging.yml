@@ -1,0 +1,60 @@
+name: Deploy to AWS Staging Server
+
+on:
+  push:
+    branches: [ master ]
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: docker://mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: magento
+          MYSQL_DATABASE: magento
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+      elasticsearch:
+        image: docker://elasticsearch:7.1.0
+        ports:
+          - 9200:9200
+        options: -e="discovery.type=single-node" --health-cmd="curl http://localhost:9200/_cluster/health" --health-interval=10s --health-timeout=5s --health-retries=10
+    env: 
+      COMPOSER_AUTH: ${{secrets.COMPOSER_AUTH}}
+      BUCKET_COMMIT: bucket-commit-${{github.sha}}.tar.gz
+      MYSQL_ROOT_PASSWORD: magento
+      MYSQL_DATABASE: magento
+
+    steps:
+
+      - uses: actions/checkout@v2
+
+      - name: 'Build Magento2'
+        if: always()
+        uses: MAD-I-T/magento-actions@master
+        env:
+          COMPOSER_AUTH: ${{secrets.COMPOSER_AUTH}}
+          MYSQL_ROOT_PASSWORD: magento
+          MYSQL_DATABASE: magento
+        with:
+          php: '7.4'
+          process: 'build'
+          elasticsearch: 1
+
+      - name: Zip Files
+        shell: bash
+        run: |
+          mkdir ./builds
+          tar -cfz "./builds/$BUCKET_COMMIT" --exclude-vcs magento
+      
+      # This uploads artifact - so can be used in the 'deploy' job (coming soon)
+      - name: Upload Artifact 
+        uses: actions/upload-artifact@v2
+        with:
+          name: build-output
+          path: ./builds/*.tar.gz
