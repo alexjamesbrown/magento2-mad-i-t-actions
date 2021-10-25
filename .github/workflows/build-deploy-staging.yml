@@ -49,12 +49,10 @@ jobs:
       - name: Zip Files
         shell: bash
         run: |
-          mkdir ./builds
-          tar -cfz "./builds/$BUCKET_COMMIT" --exclude-vcs magento
-      
-      # This uploads artifact - so can be used in the 'deploy' job (coming soon)
+          tar --exclude-vcs -czf ${{ env.BUCKET_COMMIT }} -C ./magento .
+
       - name: Upload Artifact 
         uses: actions/upload-artifact@v2
         with:
           name: build-output
-          path: ./builds/*.tar.gz
+          path: ${{ env.BUCKET_COMMIT }}
